@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hisob-kitob daftari</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <h1>📒 Hisob-kitob daftari</h1>
+    <p class="subtitle">Shaxsiy daromad va xarajatlaringizni nazorat qiling</p>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- Balans kartochkalari -->
+  <section class="summary-grid" aria-label="Umumiy ko'rsatkichlar">
+    <div class="card summary-card balance">
+      <span class="card-label">Joriy balans</span>
+      <span class="card-value" id="totalBalance">0 so'm</span>
+    </div>
+    <div class="card summary-card income">
+      <span class="card-label">Oylik daromad</span>
+      <span class="card-value" id="monthlyIncome">0 so'm</span>
+    </div>
+    <div class="card summary-card expense">
+      <span class="card-label">Oylik xarajat</span>
+      <span class="card-value" id="monthlyExpense">0 so'm</span>
+    </div>
+  </section>
+
+  <div class="grid-2col">
+
+    <!-- Yozuv qo'shish formasi -->
+    <section class="card form-card">
+      <h2>Yangi yozuv qo'shish</h2>
+      <form id="transactionForm" novalidate>
+        <div class="type-toggle" role="radiogroup" aria-label="Yozuv turi">
+          <button type="button" class="toggle-btn active" data-type="expense" id="btnExpense">Xarajat</button>
+          <button type="button" class="toggle-btn" data-type="income" id="btnIncome">Daromad</button>
+        </div>
+        <input type="hidden" id="txType" value="expense">
+
+        <div class="form-row">
+          <label for="txAmount">Summa (so'm)</label>
+          <input type="number" id="txAmount" min="1" step="1" placeholder="Masalan: 150000" required>
+        </div>
+
+        <div class="form-row">
+          <label for="txCategory">Toifa</label>
+          <select id="txCategory" required></select>
+        </div>
+
+        <div class="form-row">
+          <label for="txDate">Sana</label>
+          <input type="date" id="txDate" required>
+        </div>
+
+        <div class="form-row">
+          <label for="txNote">Izoh (ixtiyoriy)</label>
+          <input type="text" id="txNote" maxlength="120" placeholder="Masalan: Taksi">
+        </div>
+
+        <p class="form-error" id="formError" role="alert"></p>
+
+        <button type="submit" class="btn-primary">Qo'shish</button>
+      </form>
+    </section>
+
+    <!-- Byudjet limitlari -->
+    <section class="card budget-card">
+      <h2>Toifalar bo'yicha byudjet</h2>
+      <div id="budgetList" class="budget-list"></div>
+    </section>
+
+  </div>
+
+  <!-- Diagrammalar -->
+  <section class="card charts-card">
+    <div class="charts-header">
+      <h2>Tahlil</h2>
+      <input type="month" id="monthSelector">
+    </div>
+    <div class="charts-grid">
+      <div class="chart-box">
+        <h3>Oylik xarajatlar taqsimoti</h3>
+        <div class="chart-wrap">
+          <canvas id="donutChart"></canvas>
+          <p class="empty-state" id="donutEmpty" hidden>Bu oy uchun ma'lumot yo'q</p>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h3>Oxirgi 6 oylik dinamika</h3>
+        <div class="chart-wrap">
+          <canvas id="barChart"></canvas>
+          <p class="empty-state" id="barEmpty" hidden>Ma'lumot yo'q</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tranzaksiyalar tarixi -->
+  <section class="card history-card">
+    <div class="history-header">
+      <h2>Tranzaksiyalar tarixi</h2>
+      <div class="history-actions">
+        <button type="button" class="btn-secondary" id="exportCsvBtn">CSV yuklab olish</button>
+        <button type="button" class="btn-danger" id="clearAllBtn">Barchasini tozalash</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <input type="text" id="searchInput" placeholder="Izoh yoki toifa bo'yicha qidirish...">
+      <select id="filterType">
+        <option value="all">Barcha turlar</option>
+        <option value="income">Daromad</option>
+        <option value="expense">Xarajat</option>
+      </select>
+      <select id="filterCategory">
+        <option value="all">Barcha toifalar</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th>Sana</th>
+            <th>Turi</th>
+            <th>Toifa</th>
+            <th>Izoh</th>
+            <th class="text-right">Summa</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="txTableBody"></tbody>
+      </table>
+      <p class="empty-state" id="historyEmpty" hidden>Hozircha yozuvlar mavjud emas</p>
+    </div>
+  </section>
+
+</main>
+
+<!-- Tasdiqlash modali -->
+<div class="modal-overlay" id="confirmModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">Tasdiqlaysizmi?</h3>
+    <p id="modalMessage">Bu amalni orqaga qaytarib bo'lmaydi.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="modalCancelBtn">Bekor qilish</button>
+      <button type="button" class="btn-danger" id="modalConfirmBtn">Ha, o'chirish</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
