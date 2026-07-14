@@ -3,15 +3,16 @@
 
   const STORAGE_KEYS = {
     TX: 'hkd_transactions',
-    BUDGETS: 'hkd_budgets'
+    BUDGETS: 'hkd_budgets',
+    CATEGORIES: 'hkd_categories'
   };
 
-  const EXPENSE_CATEGORIES = [
+  const DEFAULT_EXPENSE_CATEGORIES = [
     "Oziq-ovqat", "Transport", "Kommunal to'lovlar", "Kiyim-kechak",
     "Sog'liqni saqlash", "Ta'lim", "Ko'ngilochar", "Boshqa"
   ];
 
-  const INCOME_CATEGORIES = [
+  const DEFAULT_INCOME_CATEGORIES = [
     "Maosh", "Frilans/Qo'shimcha", "Sovg'a", "Investitsiya", "Boshqa daromad"
   ];
 
@@ -23,9 +24,13 @@
   // ---------- State ----------
   let transactions = loadTransactions();
   let budgets = loadBudgets();
+  let categories = loadCategories();
   let pendingConfirmAction = null;
   let donutChartInstance = null;
   let barChartInstance = null;
+  let editingId = null;
+  let categoryModalType = 'expense';
+  let renamingCategory = null;
 
   // ---------- Persistence ----------
   function loadTransactions() {
@@ -48,12 +53,135 @@
     }
   }
 
+  function loadCategories() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.expense) && Array.isArray(parsed.income)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fall through to seed defaults
+    }
+    const seeded = {
+      expense: [...DEFAULT_EXPENSE_CATEGORIES],
+      income: [...DEFAULT_INCOME_CATEGORIES]
+    };
+    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(seeded));
+    return seeded;
+  }
+
   function saveTransactions() {
     localStorage.setItem(STORAGE_KEYS.TX, JSON.stringify(transactions));
   }
 
   function saveBudgets() {
     localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(budgets));
+  }
+
+  function saveCategories() {
+    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+  }
+
+  function getCategories(type) {
+    return categories[type];
+  }
+
+  function addCategory(type, rawName) {
+    const name = rawName.trim();
+    if (!name) {
+      showToast('Toifa nomini kiriting');
+      return false;
+    }
+    if (name.length > 30) {
+      showToast("Toifa nomi 30 belgidan oshmasligi kerak");
+      return false;
+    }
+    const exists = categories[type].some(c => c.toLowerCase() === name.toLowerCase());
+    if (exists) {
+      showToast('Bunday toifa allaqachon mavjud');
+      return false;
+    }
+    categories[type].push(name);
+    saveCategories();
+    return true;
+  }
+
+  function renameCategory(type, oldName, rawNewName) {
+    const newName = rawNewName.trim();
+    if (!newName) {
+      showToast('Toifa nomini kiriting');
+      return false;
+    }
+    if (newName.length > 30) {
+      showToast("Toifa nomi 30 belgidan oshmasligi kerak");
+      return false;
+    }
+    const duplicate = categories[type].some(c => c.toLowerCase() === newName.toLowerCase() && c !== oldName);
+    if (duplicate) {
+      showToast('Bunday toifa allaqachon mavjud');
+      return false;
+    }
+    if (newName === oldName) return true;
+
+    const idx = categories[type].indexOf(oldName);
+    if (idx === -1) return false;
+    categories[type][idx] = newName;
+
+    for (const tx of transactions) {
+      if (tx.type === type && tx.category === oldName) tx.category = newName;
+    }
+    if (type === 'expense' && Object.prototype.hasOwnProperty.call(budgets, oldName)) {
+      budgets[newName] = budgets[oldName];
+      delete budgets[oldName];
+    }
+
+    saveCategories();
+    saveTransactions();
+    saveBudgets();
+    return true;
+  }
+
+  function deleteCategory(type, name) {
+    if (categories[type].length <= 1) {
+      showToast("Kamida bitta toifa qolishi kerak");
+      return;
+    }
+    const usageCount = transactions.filter(t => t.type === type && t.category === name).length;
+
+    const performDelete = () => {
+      categories[type] = categories[type].filter(c => c !== name);
+      const fallback = categories[type][categories[type].length - 1];
+      if (usageCount > 0) {
+        for (const tx of transactions) {
+          if (tx.type === type && tx.category === name) tx.category = fallback;
+        }
+        saveTransactions();
+      }
+      if (type === 'expense' && Object.prototype.hasOwnProperty.call(budgets, name)) {
+        delete budgets[name];
+        saveBudgets();
+      }
+      saveCategories();
+      renderCategoryList();
+      populateCategorySelect();
+      populateFilterCategoryOptions();
+      renderAll();
+    };
+
+    if (usageCount > 0) {
+      const fallbackPreview = categories[type][categories[type].length - 1] === name
+        ? categories[type][categories[type].length - 2]
+        : categories[type][categories[type].length - 1];
+      openConfirmModal(
+        `"${name}" toifasiga tegishli ${usageCount} ta yozuv "${fallbackPreview}"ga ko'chiriladi. Davom etasizmi?`,
+        performDelete
+      );
+    } else {
+      performDelete();
+    }
   }
 
   // ---------- Helpers ----------
@@ -108,6 +236,8 @@
   const txDate = document.getElementById('txDate');
   const txNote = document.getElementById('txNote');
   const formError = document.getElementById('formError');
+  const submitBtn = document.getElementById('submitBtn');
+  const cancelEditBtn = document.getElementById('cancelEditBtn');
 
   const totalBalanceEl = document.getElementById('totalBalance');
   const monthlyIncomeEl = document.getElementById('monthlyIncome');
@@ -129,6 +259,15 @@
   const modalMessage = document.getElementById('modalMessage');
   const modalCancelBtn = document.getElementById('modalCancelBtn');
   const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+
+  const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+  const categoryModal = document.getElementById('categoryModal');
+  const categoryListEl = document.getElementById('categoryListEl');
+  const catTypeIncomeBtn = document.getElementById('catTypeIncomeBtn');
+  const catTypeExpenseBtn = document.getElementById('catTypeExpenseBtn');
+  const newCategoryInput = document.getElementById('newCategoryInput');
+  const addCategoryBtn = document.getElementById('addCategoryBtn');
+  const categoryModalCloseBtn = document.getElementById('categoryModalCloseBtn');
 
   // ---------- Init ----------
   function init() {
@@ -172,6 +311,32 @@
       if (e.target === confirmModal) closeConfirmModal();
     });
 
+    cancelEditBtn.addEventListener('click', exitEditMode);
+
+    manageCategoriesBtn.addEventListener('click', () => {
+      categoryModalType = txType.value === 'income' ? 'income' : 'expense';
+      setCategoryModalType(categoryModalType);
+      categoryModal.hidden = false;
+    });
+    categoryModalCloseBtn.addEventListener('click', () => { categoryModal.hidden = true; });
+    categoryModal.addEventListener('click', (e) => {
+      if (e.target === categoryModal) categoryModal.hidden = true;
+    });
+    catTypeIncomeBtn.addEventListener('click', () => setCategoryModalType('income'));
+    catTypeExpenseBtn.addEventListener('click', () => setCategoryModalType('expense'));
+    addCategoryBtn.addEventListener('click', () => {
+      if (addCategory(categoryModalType, newCategoryInput.value)) {
+        newCategoryInput.value = '';
+        renderCategoryList();
+        populateCategorySelect();
+        populateFilterCategoryOptions();
+        renderAll();
+      }
+    });
+    newCategoryInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addCategoryBtn.click(); }
+    });
+
     renderAll();
   }
 
@@ -183,14 +348,104 @@
   }
 
   function populateCategorySelect() {
-    const list = txType.value === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    const list = txType.value === 'income' ? getCategories('income') : getCategories('expense');
     txCategory.innerHTML = list.map(c => `<option value="${c}">${c}</option>`).join('');
   }
 
   function populateFilterCategoryOptions() {
-    const all = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES];
+    const all = [...getCategories('expense'), ...getCategories('income')];
     filterCategory.innerHTML = '<option value="all">Barcha toifalar</option>' +
       all.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  // ---------- Category management ----------
+  function setCategoryModalType(type) {
+    categoryModalType = type;
+    catTypeExpenseBtn.classList.toggle('active', type === 'expense');
+    catTypeIncomeBtn.classList.toggle('active', type === 'income');
+    renamingCategory = null;
+    renderCategoryList();
+  }
+
+  function renderCategoryList() {
+    const list = getCategories(categoryModalType);
+    const frag = document.createDocumentFragment();
+
+    for (const name of list) {
+      const row = document.createElement('div');
+      row.className = 'category-row';
+
+      if (name === renamingCategory) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'category-rename-input';
+        input.maxLength = 30;
+        input.value = name;
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'row-edit-btn';
+        saveBtn.title = 'Saqlash';
+        saveBtn.textContent = '✓';
+        saveBtn.addEventListener('click', () => {
+          if (renameCategory(categoryModalType, name, input.value)) {
+            renamingCategory = null;
+            renderCategoryList();
+            populateCategorySelect();
+            populateFilterCategoryOptions();
+            renderAll();
+          }
+        });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'row-delete-btn';
+        cancelBtn.title = 'Bekor qilish';
+        cancelBtn.textContent = '✕';
+        cancelBtn.addEventListener('click', () => {
+          renamingCategory = null;
+          renderCategoryList();
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'category-row-actions';
+        actions.append(saveBtn, cancelBtn);
+
+        row.append(input, actions);
+      } else {
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'category-row-name';
+        nameSpan.textContent = name;
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'row-edit-btn';
+        editBtn.title = "Nomini o'zgartirish";
+        editBtn.textContent = '✏️';
+        editBtn.addEventListener('click', () => {
+          renamingCategory = name;
+          renderCategoryList();
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'row-delete-btn';
+        deleteBtn.title = "O'chirish";
+        deleteBtn.textContent = '✕';
+        deleteBtn.addEventListener('click', () => deleteCategory(categoryModalType, name));
+
+        const actions = document.createElement('div');
+        actions.className = 'category-row-actions';
+        actions.append(editBtn, deleteBtn);
+
+        row.append(nameSpan, actions);
+      }
+
+      frag.appendChild(row);
+    }
+
+    categoryListEl.innerHTML = '';
+    categoryListEl.appendChild(frag);
   }
 
   // ---------- Form submit ----------
@@ -220,6 +475,20 @@
       return;
     }
 
+    if (editingId) {
+      const existing = transactions.find(t => t.id === editingId);
+      existing.type = txType.value;
+      existing.amount = Math.round(amountVal);
+      existing.category = categoryVal;
+      existing.date = dateVal;
+      existing.note = noteVal;
+      saveTransactions();
+      exitEditMode();
+      renderAll();
+      showToast('Yozuv yangilandi');
+      return;
+    }
+
     const tx = {
       id: genId(),
       type: txType.value,
@@ -238,6 +507,29 @@
 
     renderAll();
     showToast("Yozuv qo'shildi");
+  }
+
+  function enterEditMode(tx) {
+    editingId = tx.id;
+    setType(tx.type);
+    txCategory.value = tx.category;
+    txAmount.value = tx.amount;
+    txDate.value = tx.date;
+    txNote.value = tx.note;
+    formError.textContent = '';
+    submitBtn.textContent = 'Saqlash';
+    cancelEditBtn.hidden = false;
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exitEditMode() {
+    editingId = null;
+    form.reset();
+    txDate.value = todayStr();
+    setType('expense');
+    formError.textContent = '';
+    submitBtn.textContent = "Qo'shish";
+    cancelEditBtn.hidden = true;
   }
 
   // ---------- Rendering ----------
@@ -278,7 +570,7 @@
     }
 
     const frag = document.createDocumentFragment();
-    for (const cat of EXPENSE_CATEGORIES) {
+    for (const cat of getCategories('expense')) {
       const spent = spentByCategory[cat] || 0;
       const limit = budgets[cat] || 0;
       const percent = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
@@ -505,6 +797,13 @@
       tdAmount.textContent = (tx.type === 'income' ? '+' : '-') + formatSom(tx.amount);
 
       const tdActions = document.createElement('td');
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'row-edit-btn';
+      editBtn.title = "Tahrirlash";
+      editBtn.textContent = '✏️';
+      editBtn.addEventListener('click', () => enterEditMode(tx));
+
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
       delBtn.className = 'row-delete-btn';
@@ -514,11 +813,12 @@
         openConfirmModal("Ushbu yozuvni o'chirmoqchimisiz?", () => {
           transactions = transactions.filter(t => t.id !== tx.id);
           saveTransactions();
+          if (tx.id === editingId) exitEditMode();
           renderAll();
           showToast("Yozuv o'chirildi");
         });
       });
-      tdActions.appendChild(delBtn);
+      tdActions.append(editBtn, delBtn);
 
       tr.append(tdDate, tdType, tdCategory, tdNote, tdAmount, tdActions);
       frag.appendChild(tr);

@@ -218,6 +218,34 @@ input:focus, select:focus {
   color: var(--text-main);
 }
 
+.btn-small {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.form-actions .btn-primary {
+  width: auto;
+  flex: 1;
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.card-header-row h2 {
+  margin: 0;
+}
+
 .btn-danger {
   background: var(--red);
   color: #fff;
@@ -428,7 +456,7 @@ input:focus, select:focus {
   font-weight: 600;
 }
 
-.row-delete-btn {
+.row-delete-btn, .row-edit-btn {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -441,6 +469,11 @@ input:focus, select:focus {
 .row-delete-btn:hover {
   color: var(--red-soft);
   background: rgba(229, 83, 75, 0.12);
+}
+
+.row-edit-btn:hover {
+  color: var(--gold-soft);
+  background: rgba(212, 175, 55, 0.12);
 }
 
 .table-wrap .empty-state {
@@ -464,6 +497,10 @@ input:focus, select:focus {
   display: none;
 }
 
+#confirmModal {
+  z-index: 150;
+}
+
 .modal {
   background: var(--bg-surface);
   border: 1px solid var(--gold);
@@ -472,6 +509,55 @@ input:focus, select:focus {
   max-width: 360px;
   width: 100%;
   box-shadow: var(--shadow);
+}
+
+.modal.modal-wide {
+  max-width: 460px;
+}
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-col);
+  border-radius: 8px;
+}
+
+.category-row-name {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-row-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.category-rename-input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+}
+
+.category-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .modal h3 {

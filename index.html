@@ -67,13 +67,19 @@
 
         <p class="form-error" id="formError" role="alert"></p>
 
-        <button type="submit" class="btn-primary">Qo'shish</button>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="submitBtn">Qo'shish</button>
+          <button type="button" class="btn-secondary" id="cancelEditBtn" hidden>Bekor qilish</button>
+        </div>
       </form>
     </section>
 
     <!-- Byudjet limitlari -->
     <section class="card budget-card">
-      <h2>Toifalar bo'yicha byudjet</h2>
+      <div class="card-header-row">
+        <h2>Toifalar bo'yicha byudjet</h2>
+        <button type="button" class="btn-secondary btn-small" id="manageCategoriesBtn">Toifalarni boshqarish</button>
+      </div>
       <div id="budgetList" class="budget-list"></div>
     </section>
 
@@ -153,6 +159,25 @@
     <div class="modal-actions">
       <button type="button" class="btn-secondary" id="modalCancelBtn">Bekor qilish</button>
       <button type="button" class="btn-danger" id="modalConfirmBtn">Ha, o'chirish</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toifalarni boshqarish modali -->
+<div class="modal-overlay" id="categoryModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+    <h3 id="categoryModalTitle">Toifalarni boshqarish</h3>
+    <div class="type-toggle">
+      <button type="button" class="toggle-btn" data-type="income" id="catTypeIncomeBtn">Daromad toifalari</button>
+      <button type="button" class="toggle-btn active" data-type="expense" id="catTypeExpenseBtn">Xarajat toifalari</button>
+    </div>
+    <div class="category-list" id="categoryListEl"></div>
+    <div class="category-add-row">
+      <input type="text" id="newCategoryInput" placeholder="Yangi toifa nomi" maxlength="30">
+      <button type="button" class="btn-secondary" id="addCategoryBtn">Qo'shish</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="categoryModalCloseBtn">Yopish</button>
     </div>
   </div>
 </div>
