@@ -16,6 +16,10 @@
     "Maosh", "Frilans/Qo'shimcha", "Sovg'a", "Investitsiya", "Boshqa daromad"
   ];
 
+  const MONTH_NAMES_UZ = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+    'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+  const WEEKDAY_NAMES_UZ = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya'];
+
   const DONUT_COLORS = [
     '#d4af37', '#b8763e', '#e5534b', '#3ecf8e', '#4a90d9',
     '#9b6bd4', '#e0952f', '#5fb3c4'
@@ -209,9 +213,13 @@
 
   function monthLabel(monthStr) {
     const [y, m] = monthStr.split('-').map(Number);
-    const names = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
-      'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
-    return `${names[m - 1]} ${y}`;
+    return `${MONTH_NAMES_UZ[m - 1]} ${y}`;
+  }
+
+  function formatDateUz(dateStr) {
+    if (!dateStr) return 'Sanani tanlang';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return `${d}-${MONTH_NAMES_UZ[m - 1]}, ${y}`;
   }
 
   function shiftMonth(monthStr, delta) {
@@ -296,6 +304,8 @@
     txDate.value = todayStr();
     txDate.max = todayStr();
     monthSelector.value = currentMonthStr();
+    enhanceDateInput(txDate);
+    enhanceMonthInput(monthSelector);
 
     populateCategorySelect();
     populateFilterCategoryOptions();
@@ -557,7 +567,7 @@
     saveTransactions();
 
     form.reset();
-    txDate.value = todayStr();
+    setInputValueUz(txDate, todayStr());
     setType(txType.value === 'income' ? 'income' : 'expense');
 
     renderAll();
@@ -569,7 +579,7 @@
     setType(tx.type);
     txCategory.value = tx.category;
     txAmount.value = tx.amount;
-    txDate.value = tx.date;
+    setInputValueUz(txDate, tx.date);
     txNote.value = tx.note;
     formError.textContent = '';
     submitBtn.textContent = 'Saqlash';
@@ -580,7 +590,7 @@
   function exitEditMode() {
     editingId = null;
     form.reset();
-    txDate.value = todayStr();
+    setInputValueUz(txDate, todayStr());
     setType('expense');
     formError.textContent = '';
     submitBtn.textContent = "Qo'shish";
@@ -824,7 +834,7 @@
     viewMode = mode;
     viewModeMonthBtn.classList.toggle('active', mode === 'month');
     viewModeYearBtn.classList.toggle('active', mode === 'year');
-    monthSelector.hidden = mode !== 'month';
+    document.getElementById('monthSelectorWrap').hidden = mode !== 'month';
     yearSelector.hidden = mode !== 'year';
     if (mode === 'year') populateYearSelector();
     renderCharts();
@@ -1237,6 +1247,236 @@
   function closeConfirmModal() {
     confirmModal.hidden = true;
     pendingConfirmAction = null;
+  }
+
+  // ---------- Custom Uz sana/oy tanlagich ----------
+  const uzPickerRegistry = new Map();
+
+  function setInputValueUz(inputEl, value) {
+    inputEl.value = value;
+    const refresh = uzPickerRegistry.get(inputEl);
+    if (refresh) refresh();
+  }
+
+  function positionPopup(wrap, popup) {
+    const rect = wrap.getBoundingClientRect();
+    const overflowsRight = rect.left + popup.offsetWidth > window.innerWidth;
+    popup.style.left = overflowsRight ? 'auto' : '0';
+    popup.style.right = overflowsRight ? '0' : 'auto';
+  }
+
+  function enhanceDateInput(inputEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'uz-picker-wrap';
+    wrap.id = inputEl.id + 'Wrap';
+    inputEl.parentNode.insertBefore(wrap, inputEl);
+    wrap.appendChild(inputEl);
+    inputEl.classList.add('uz-native-input');
+    inputEl.tabIndex = -1;
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'uz-picker-trigger';
+    wrap.appendChild(trigger);
+
+    const popup = document.createElement('div');
+    popup.className = 'uz-picker-popup';
+    popup.hidden = true;
+    wrap.appendChild(popup);
+
+    let viewY;
+    let viewM;
+
+    function refreshTrigger() {
+      trigger.textContent = formatDateUz(inputEl.value);
+    }
+
+    function renderGrid() {
+      popup.innerHTML = '';
+
+      const nav = document.createElement('div');
+      nav.className = 'uz-picker-nav';
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.textContent = '◀';
+      const label = document.createElement('span');
+      label.textContent = `${MONTH_NAMES_UZ[viewM]} ${viewY}`;
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.textContent = '▶';
+      prevBtn.addEventListener('click', () => {
+        viewM--; if (viewM < 0) { viewM = 11; viewY--; }
+        renderGrid();
+      });
+      nextBtn.addEventListener('click', () => {
+        viewM++; if (viewM > 11) { viewM = 0; viewY++; }
+        renderGrid();
+      });
+      nav.append(prevBtn, label, nextBtn);
+      popup.appendChild(nav);
+
+      const weekRow = document.createElement('div');
+      weekRow.className = 'uz-picker-grid uz-picker-weekdays';
+      for (const wd of WEEKDAY_NAMES_UZ) {
+        const cell = document.createElement('span');
+        cell.textContent = wd;
+        weekRow.appendChild(cell);
+      }
+      popup.appendChild(weekRow);
+
+      const grid = document.createElement('div');
+      grid.className = 'uz-picker-grid';
+
+      let leadDays = new Date(viewY, viewM, 1).getDay() - 1;
+      if (leadDays < 0) leadDays = 6;
+      const daysInMonth = new Date(viewY, viewM + 1, 0).getDate();
+      const maxDate = inputEl.max || null;
+      const todayIso = todayStr();
+      const selected = inputEl.value;
+
+      for (let i = 0; i < leadDays; i++) grid.appendChild(document.createElement('span'));
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${viewY}-${String(viewM + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'uz-picker-day';
+        btn.textContent = String(d);
+        if (iso === todayIso) btn.classList.add('today');
+        if (iso === selected) btn.classList.add('selected');
+        if (maxDate && iso > maxDate) {
+          btn.disabled = true;
+          btn.classList.add('disabled');
+        } else {
+          btn.addEventListener('click', () => {
+            inputEl.value = iso;
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            refreshTrigger();
+            closePopup();
+          });
+        }
+        grid.appendChild(btn);
+      }
+      popup.appendChild(grid);
+    }
+
+    function onOutsideClick(e) {
+      if (!wrap.contains(e.target)) closePopup();
+    }
+    function onKeydown(e) {
+      if (e.key === 'Escape') closePopup();
+    }
+    function openPopup() {
+      const base = (inputEl.value || todayStr()).split('-').map(Number);
+      viewY = base[0];
+      viewM = base[1] - 1;
+      renderGrid();
+      popup.hidden = false;
+      positionPopup(wrap, popup);
+      document.addEventListener('click', onOutsideClick, true);
+      document.addEventListener('keydown', onKeydown, true);
+    }
+    function closePopup() {
+      popup.hidden = true;
+      document.removeEventListener('click', onOutsideClick, true);
+      document.removeEventListener('keydown', onKeydown, true);
+    }
+
+    trigger.addEventListener('click', () => (popup.hidden ? openPopup() : closePopup()));
+
+    refreshTrigger();
+    uzPickerRegistry.set(inputEl, refreshTrigger);
+  }
+
+  function enhanceMonthInput(inputEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'uz-picker-wrap';
+    wrap.id = inputEl.id + 'Wrap';
+    inputEl.parentNode.insertBefore(wrap, inputEl);
+    wrap.appendChild(inputEl);
+    inputEl.classList.add('uz-native-input');
+    inputEl.tabIndex = -1;
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'uz-picker-trigger';
+    wrap.appendChild(trigger);
+
+    const popup = document.createElement('div');
+    popup.className = 'uz-picker-popup';
+    popup.hidden = true;
+    wrap.appendChild(popup);
+
+    let viewY;
+
+    function refreshTrigger() {
+      trigger.textContent = inputEl.value ? monthLabel(inputEl.value) : 'Oyni tanlang';
+    }
+
+    function renderGrid() {
+      popup.innerHTML = '';
+
+      const nav = document.createElement('div');
+      nav.className = 'uz-picker-nav';
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.textContent = '◀';
+      const label = document.createElement('span');
+      label.textContent = String(viewY);
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.textContent = '▶';
+      prevBtn.addEventListener('click', () => { viewY--; renderGrid(); });
+      nextBtn.addEventListener('click', () => { viewY++; renderGrid(); });
+      nav.append(prevBtn, label, nextBtn);
+      popup.appendChild(nav);
+
+      const grid = document.createElement('div');
+      grid.className = 'uz-picker-grid uz-picker-month-grid';
+      const selected = inputEl.value;
+
+      for (let m = 0; m < 12; m++) {
+        const iso = `${viewY}-${String(m + 1).padStart(2, '0')}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'uz-picker-month-cell';
+        btn.textContent = MONTH_NAMES_UZ[m].slice(0, 3);
+        if (iso === selected) btn.classList.add('selected');
+        btn.addEventListener('click', () => {
+          inputEl.value = iso;
+          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+          refreshTrigger();
+          closePopup();
+        });
+        grid.appendChild(btn);
+      }
+      popup.appendChild(grid);
+    }
+
+    function onOutsideClick(e) {
+      if (!wrap.contains(e.target)) closePopup();
+    }
+    function onKeydown(e) {
+      if (e.key === 'Escape') closePopup();
+    }
+    function openPopup() {
+      viewY = inputEl.value ? Number(inputEl.value.split('-')[0]) : new Date().getFullYear();
+      renderGrid();
+      popup.hidden = false;
+      positionPopup(wrap, popup);
+      document.addEventListener('click', onOutsideClick, true);
+      document.addEventListener('keydown', onKeydown, true);
+    }
+    function closePopup() {
+      popup.hidden = true;
+      document.removeEventListener('click', onOutsideClick, true);
+      document.removeEventListener('keydown', onKeydown, true);
+    }
+
+    trigger.addEventListener('click', () => (popup.hidden ? openPopup() : closePopup()));
+
+    refreshTrigger();
+    uzPickerRegistry.set(inputEl, refreshTrigger);
   }
 
   document.addEventListener('DOMContentLoaded', init);
