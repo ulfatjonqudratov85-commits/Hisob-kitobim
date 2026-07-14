@@ -253,7 +253,17 @@
   const historyEmpty = document.getElementById('historyEmpty');
 
   const exportCsvBtn = document.getElementById('exportCsvBtn');
+  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  const importJsonBtn = document.getElementById('importJsonBtn');
+  const importFileInput = document.getElementById('importFileInput');
   const clearAllBtn = document.getElementById('clearAllBtn');
+
+  const importModal = document.getElementById('importModal');
+  const importModalMessage = document.getElementById('importModalMessage');
+  const importCancelBtn = document.getElementById('importCancelBtn');
+  const importMergeBtn = document.getElementById('importMergeBtn');
+  const importReplaceBtn = document.getElementById('importReplaceBtn');
+  let pendingImport = null;
 
   const confirmModal = document.getElementById('confirmModal');
   const modalMessage = document.getElementById('modalMessage');
@@ -335,6 +345,28 @@
     });
     newCategoryInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); addCategoryBtn.click(); }
+    });
+
+    exportJsonBtn.addEventListener('click', exportJson);
+    importJsonBtn.addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', handleImportFileChange);
+    importCancelBtn.addEventListener('click', closeImportModal);
+    importModal.addEventListener('click', (e) => {
+      if (e.target === importModal) closeImportModal();
+    });
+    importMergeBtn.addEventListener('click', () => {
+      if (pendingImport) {
+        mergeImportedData(pendingImport);
+        showToast("Ma'lumotlar birlashtirildi");
+      }
+      closeImportModal();
+    });
+    importReplaceBtn.addEventListener('click', () => {
+      if (pendingImport) {
+        replaceImportedData(pendingImport);
+        showToast("Ma'lumotlar almashtirildi");
+      }
+      closeImportModal();
     });
 
     renderAll();
@@ -859,6 +891,173 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // ---------- JSON zaxira nusxa ----------
+  function exportJson() {
+    const payload = {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      app: 'hisob-kitob-daftari',
+      data: { transactions, budgets, categories }
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hisob-kitob-zaxira_${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function validateImportedPayload(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.data || typeof raw.data !== 'object') {
+      return { valid: false, error: "Fayl formati noto'g'ri" };
+    }
+
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const rawTx = Array.isArray(raw.data.transactions) ? raw.data.transactions : [];
+    const cleanTx = [];
+    for (const t of rawTx) {
+      if (
+        t && typeof t.id === 'string' &&
+        (t.type === 'income' || t.type === 'expense') &&
+        Number.isFinite(t.amount) && t.amount > 0 &&
+        typeof t.date === 'string' && dateRe.test(t.date) &&
+        typeof t.category === 'string' && t.category.trim()
+      ) {
+        cleanTx.push({
+          id: t.id,
+          type: t.type,
+          amount: Math.round(t.amount),
+          date: t.date,
+          category: t.category.trim(),
+          note: typeof t.note === 'string' ? t.note : ''
+        });
+      }
+    }
+    const skippedCount = rawTx.length - cleanTx.length;
+
+    const cleanBudgets = {};
+    if (raw.data.budgets && typeof raw.data.budgets === 'object') {
+      for (const [key, val] of Object.entries(raw.data.budgets)) {
+        if (Number.isFinite(val) && val > 0) cleanBudgets[key] = Math.round(val);
+      }
+    }
+
+    const cleanCategories = { expense: [], income: [] };
+    const srcCat = raw.data.categories;
+    for (const type of ['expense', 'income']) {
+      const arr = srcCat && Array.isArray(srcCat[type]) ? srcCat[type] : [];
+      const seenLower = new Set();
+      for (const name of arr) {
+        if (typeof name === 'string' && name.trim() && !seenLower.has(name.trim().toLowerCase())) {
+          seenLower.add(name.trim().toLowerCase());
+          cleanCategories[type].push(name.trim());
+        }
+      }
+      for (const t of cleanTx) {
+        if (t.type === type && !seenLower.has(t.category.toLowerCase())) {
+          seenLower.add(t.category.toLowerCase());
+          cleanCategories[type].push(t.category);
+        }
+      }
+      if (cleanCategories[type].length === 0) {
+        cleanCategories[type] = type === 'expense'
+          ? [...DEFAULT_EXPENSE_CATEGORIES]
+          : [...DEFAULT_INCOME_CATEGORIES];
+      }
+    }
+
+    return { valid: true, transactions: cleanTx, budgets: cleanBudgets, categories: cleanCategories, skippedCount };
+  }
+
+  function handleImportFileChange(e) {
+    const file = e.target.files[0];
+    importFileInput.value = '';
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      let rawParsed;
+      try {
+        rawParsed = JSON.parse(reader.result);
+      } catch {
+        showToast("Fayl formati noto'g'ri");
+        return;
+      }
+      const result = validateImportedPayload(rawParsed);
+      if (!result.valid) {
+        showToast(result.error || "Fayl formati noto'g'ri");
+        return;
+      }
+      if (result.transactions.length === 0 && result.skippedCount === 0) {
+        showToast("Faylda ma'lumot topilmadi");
+        return;
+      }
+      pendingImport = result;
+      const skipMsg = result.skippedCount > 0
+        ? ` (${result.skippedCount} ta noto'g'ri yozuv o'tkazib yuborildi)`
+        : '';
+      importModalMessage.textContent =
+        `Faylda ${result.transactions.length} ta tranzaksiya topildi${skipMsg}. Mavjud ma'lumotlar bilan qanday davom etamiz?`;
+      importModal.hidden = false;
+    };
+    reader.onerror = () => showToast("Faylni o'qib bo'lmadi");
+    reader.readAsText(file);
+  }
+
+  function persistAllOrWarn() {
+    try {
+      saveTransactions();
+      saveBudgets();
+      saveCategories();
+      return true;
+    } catch {
+      showToast('Xotira yetarli emas — zaxira saqlanmadi');
+      return false;
+    }
+  }
+
+  function replaceImportedData(parsed) {
+    transactions = parsed.transactions;
+    budgets = parsed.budgets;
+    categories = parsed.categories;
+    persistAllOrWarn();
+    populateCategorySelect();
+    populateFilterCategoryOptions();
+    renderAll();
+  }
+
+  function mergeImportedData(parsed) {
+    const existingIds = new Set(transactions.map(t => t.id));
+    for (const t of parsed.transactions) {
+      if (!existingIds.has(t.id)) {
+        transactions.push(t);
+        existingIds.add(t.id);
+      }
+    }
+    Object.assign(budgets, parsed.budgets);
+    for (const type of ['expense', 'income']) {
+      const existingLower = new Set(categories[type].map(c => c.toLowerCase()));
+      for (const name of parsed.categories[type]) {
+        if (!existingLower.has(name.toLowerCase())) {
+          categories[type].push(name);
+          existingLower.add(name.toLowerCase());
+        }
+      }
+    }
+    persistAllOrWarn();
+    populateCategorySelect();
+    populateFilterCategoryOptions();
+    renderAll();
+  }
+
+  function closeImportModal() {
+    importModal.hidden = true;
+    pendingImport = null;
   }
 
   // ---------- Confirm modal ----------

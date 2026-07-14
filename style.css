@@ -388,6 +388,7 @@ input:focus, select:focus {
 .history-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .filters {
@@ -575,6 +576,10 @@ input:focus, select:focus {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.modal-actions-wrap {
+  flex-wrap: wrap;
 }
 
 /* Toast */

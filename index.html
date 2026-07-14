@@ -115,6 +115,9 @@
       <h2>Tranzaksiyalar tarixi</h2>
       <div class="history-actions">
         <button type="button" class="btn-secondary" id="exportCsvBtn">CSV yuklab olish</button>
+        <button type="button" class="btn-secondary" id="exportJsonBtn">JSON zaxira yuklab olish</button>
+        <button type="button" class="btn-secondary" id="importJsonBtn">Zaxiradan tiklash</button>
+        <input type="file" id="importFileInput" accept="application/json,.json" hidden>
         <button type="button" class="btn-danger" id="clearAllBtn">Barchasini tozalash</button>
       </div>
     </div>
@@ -178,6 +181,19 @@
     </div>
     <div class="modal-actions">
       <button type="button" class="btn-secondary" id="categoryModalCloseBtn">Yopish</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zaxiradan tiklash modali -->
+<div class="modal-overlay" id="importModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <h3 id="importModalTitle">Zaxiradan tiklash</h3>
+    <p id="importModalMessage">Faylda ma'lumot topildi.</p>
+    <div class="modal-actions modal-actions-wrap">
+      <button type="button" class="btn-secondary" id="importCancelBtn">Bekor qilish</button>
+      <button type="button" class="btn-secondary" id="importMergeBtn">Birlashtirish</button>
+      <button type="button" class="btn-danger" id="importReplaceBtn">Almashtirish</button>
     </div>
   </div>
 </div>
