@@ -89,24 +89,57 @@
   <section class="card charts-card">
     <div class="charts-header">
       <h2>Tahlil</h2>
-      <input type="month" id="monthSelector">
+      <div class="charts-header-controls">
+        <div class="type-toggle view-mode-toggle">
+          <button type="button" class="toggle-btn active" id="viewModeMonthBtn">Oylik</button>
+          <button type="button" class="toggle-btn" id="viewModeYearBtn">Yillik</button>
+        </div>
+        <input type="month" id="monthSelector">
+        <select id="yearSelector" hidden></select>
+      </div>
     </div>
     <div class="charts-grid">
       <div class="chart-box">
-        <h3>Oylik xarajatlar taqsimoti</h3>
+        <h3 id="donutChartTitle">Oylik xarajatlar taqsimoti</h3>
         <div class="chart-wrap">
           <canvas id="donutChart"></canvas>
-          <p class="empty-state" id="donutEmpty" hidden>Bu oy uchun ma'lumot yo'q</p>
+          <p class="empty-state" id="donutEmpty" hidden>Bu davr uchun ma'lumot yo'q</p>
         </div>
       </div>
       <div class="chart-box">
-        <h3>Oxirgi 6 oylik dinamika</h3>
+        <h3 id="barChartTitle">Oxirgi 6 oylik dinamika</h3>
         <div class="chart-wrap">
           <canvas id="barChart"></canvas>
           <p class="empty-state" id="barEmpty" hidden>Ma'lumot yo'q</p>
         </div>
       </div>
     </div>
+  </section>
+
+  <!-- Qo'shimcha ko'rsatkichlar -->
+  <section class="card stats-card">
+    <h2>Qo'shimcha ko'rsatkichlar</h2>
+    <div class="stats-grid">
+      <div class="stat-tile">
+        <span class="card-label">Kunlik o'rtacha xarajat</span>
+        <span class="card-value" id="statAvgDaily">0 so'm</span>
+      </div>
+      <div class="stat-tile">
+        <span class="card-label">Oylik o'rtacha xarajat</span>
+        <span class="card-value" id="statAvgMonthly">0 so'm</span>
+      </div>
+      <div class="stat-tile">
+        <span class="card-label">Jamg'arma foizi</span>
+        <span class="card-value" id="statSavingsRate">—</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Top toifalar -->
+  <section class="card top-categories-card">
+    <h2>Eng ko'p sarflangan toifalar</h2>
+    <div id="topCategoriesList" class="top-categories-list"></div>
+    <p class="list-empty" id="topCategoriesEmpty" hidden>Bu davr uchun xarajat ma'lumoti yo'q</p>
   </section>
 
   <!-- Tranzaksiyalar tarixi -->

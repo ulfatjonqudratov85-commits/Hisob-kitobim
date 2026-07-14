@@ -31,6 +31,8 @@
   let editingId = null;
   let categoryModalType = 'expense';
   let renamingCategory = null;
+  let viewMode = 'month';
+  let selectedYear = new Date().getFullYear();
 
   // ---------- Persistence ----------
   function loadTransactions() {
@@ -245,6 +247,16 @@
 
   const budgetListEl = document.getElementById('budgetList');
   const monthSelector = document.getElementById('monthSelector');
+  const yearSelector = document.getElementById('yearSelector');
+  const viewModeMonthBtn = document.getElementById('viewModeMonthBtn');
+  const viewModeYearBtn = document.getElementById('viewModeYearBtn');
+  const donutChartTitle = document.getElementById('donutChartTitle');
+  const barChartTitle = document.getElementById('barChartTitle');
+  const statAvgDaily = document.getElementById('statAvgDaily');
+  const statAvgMonthly = document.getElementById('statAvgMonthly');
+  const statSavingsRate = document.getElementById('statSavingsRate');
+  const topCategoriesList = document.getElementById('topCategoriesList');
+  const topCategoriesEmpty = document.getElementById('topCategoriesEmpty');
 
   const searchInput = document.getElementById('searchInput');
   const filterType = document.getElementById('filterType');
@@ -294,6 +306,17 @@
 
     monthSelector.addEventListener('change', () => {
       renderCharts();
+      renderAdvancedStats();
+      renderTopCategories();
+    });
+
+    viewModeMonthBtn.addEventListener('click', () => setViewMode('month'));
+    viewModeYearBtn.addEventListener('click', () => setViewMode('year'));
+    yearSelector.addEventListener('change', () => {
+      selectedYear = Number(yearSelector.value);
+      renderCharts();
+      renderAdvancedStats();
+      renderTopCategories();
     });
 
     searchInput.addEventListener('input', renderHistory);
@@ -569,6 +592,8 @@
     renderSummary();
     renderBudgets();
     renderCharts();
+    renderAdvancedStats();
+    renderTopCategories();
     renderHistory();
   }
 
@@ -666,10 +691,13 @@
   }
 
   function renderDonutChart() {
-    const selectedMonth = monthSelector.value || currentMonthStr();
+    donutChartTitle.textContent = viewMode === 'year'
+      ? `${selectedYear}-yil xarajatlar taqsimoti`
+      : 'Oylik xarajatlar taqsimoti';
+
     const totals = {};
-    for (const tx of transactions) {
-      if (tx.type === 'expense' && tx.date.slice(0, 7) === selectedMonth) {
+    for (const tx of getPeriodTransactions()) {
+      if (tx.type === 'expense') {
         totals[tx.category] = (totals[tx.category] || 0) + tx.amount;
       }
     }
@@ -719,9 +747,17 @@
   }
 
   function renderBarChart() {
-    const anchor = monthSelector.value || currentMonthStr();
-    const months = [];
-    for (let i = 5; i >= 0; i--) months.push(shiftMonth(anchor, -i));
+    let months;
+    if (viewMode === 'year') {
+      months = [];
+      for (let m = 1; m <= 12; m++) months.push(`${selectedYear}-${String(m).padStart(2, '0')}`);
+      barChartTitle.textContent = `${selectedYear}-yil oylik dinamikasi`;
+    } else {
+      const anchor = monthSelector.value || currentMonthStr();
+      months = [];
+      for (let i = 5; i >= 0; i--) months.push(shiftMonth(anchor, -i));
+      barChartTitle.textContent = 'Oxirgi 6 oylik dinamika';
+    }
 
     const incomeData = months.map(m =>
       transactions.filter(tx => tx.type === 'income' && tx.date.slice(0, 7) === m)
@@ -772,6 +808,137 @@
         }
       }
     });
+  }
+
+  // ---------- Chuqurroq tahlil ----------
+  function populateYearSelector() {
+    const years = new Set(transactions.map(t => Number(t.date.slice(0, 4))));
+    years.add(new Date().getFullYear());
+    const sorted = [...years].sort((a, b) => b - a);
+    yearSelector.innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join('');
+    if (!sorted.includes(selectedYear)) selectedYear = sorted[0];
+    yearSelector.value = String(selectedYear);
+  }
+
+  function setViewMode(mode) {
+    viewMode = mode;
+    viewModeMonthBtn.classList.toggle('active', mode === 'month');
+    viewModeYearBtn.classList.toggle('active', mode === 'year');
+    monthSelector.hidden = mode !== 'month';
+    yearSelector.hidden = mode !== 'year';
+    if (mode === 'year') populateYearSelector();
+    renderCharts();
+    renderAdvancedStats();
+    renderTopCategories();
+  }
+
+  function getPeriodTransactions() {
+    if (viewMode === 'year') {
+      const y = String(selectedYear);
+      return transactions.filter(t => t.date.slice(0, 4) === y);
+    }
+    const m = monthSelector.value || currentMonthStr();
+    return transactions.filter(t => t.date.slice(0, 7) === m);
+  }
+
+  function getPeriodDayCount() {
+    const today = new Date();
+    if (viewMode === 'year') {
+      const isLeap = (selectedYear % 4 === 0 && selectedYear % 100 !== 0) || selectedYear % 400 === 0;
+      const totalDays = isLeap ? 366 : 365;
+      if (selectedYear === today.getFullYear()) {
+        const start = new Date(selectedYear, 0, 1);
+        return Math.min(Math.floor((today - start) / 86400000) + 1, totalDays);
+      }
+      return totalDays;
+    }
+    const m = monthSelector.value || currentMonthStr();
+    const [y, mo] = m.split('-').map(Number);
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    return m === currentMonthStr() ? today.getDate() : daysInMonth;
+  }
+
+  function getElapsedMonthsInPeriod() {
+    if (viewMode === 'year') {
+      const today = new Date();
+      return selectedYear === today.getFullYear() ? today.getMonth() + 1 : 12;
+    }
+    return 1;
+  }
+
+  function renderAdvancedStats() {
+    const periodTx = getPeriodTransactions();
+    let income = 0;
+    let expense = 0;
+    for (const t of periodTx) {
+      if (t.type === 'income') income += t.amount;
+      else expense += t.amount;
+    }
+
+    const days = Math.max(1, getPeriodDayCount());
+    const months = Math.max(1, getElapsedMonthsInPeriod());
+    statAvgDaily.textContent = formatSom(expense / days);
+    statAvgMonthly.textContent = formatSom(expense / months);
+
+    statSavingsRate.classList.remove('positive', 'negative');
+    if (income > 0) {
+      const rate = Math.round(((income - expense) / income) * 100);
+      statSavingsRate.textContent = `${rate}%`;
+      statSavingsRate.classList.add(rate >= 0 ? 'positive' : 'negative');
+    } else {
+      statSavingsRate.textContent = '—';
+    }
+  }
+
+  function renderTopCategories(n = 5) {
+    const totals = {};
+    let grandTotal = 0;
+    for (const t of getPeriodTransactions()) {
+      if (t.type !== 'expense') continue;
+      totals[t.category] = (totals[t.category] || 0) + t.amount;
+      grandTotal += t.amount;
+    }
+    const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, n);
+
+    if (ranked.length === 0) {
+      topCategoriesList.innerHTML = '';
+      topCategoriesEmpty.hidden = false;
+      return;
+    }
+    topCategoriesEmpty.hidden = true;
+
+    const frag = document.createDocumentFragment();
+    ranked.forEach(([cat, amount], idx) => {
+      const percent = grandTotal > 0 ? (amount / grandTotal) * 100 : 0;
+
+      const row = document.createElement('div');
+      row.className = 'top-cat-row';
+
+      const rank = document.createElement('div');
+      rank.className = 'top-cat-rank';
+      rank.textContent = String(idx + 1);
+
+      const body = document.createElement('div');
+      body.className = 'top-cat-body';
+
+      const top = document.createElement('div');
+      top.className = 'top-cat-top';
+      top.innerHTML = `<span class="top-cat-name">${cat}</span><span class="top-cat-amounts">${formatSom(amount)} · ${Math.round(percent)}%</span>`;
+
+      const track = document.createElement('div');
+      track.className = 'progress-track';
+      const fill = document.createElement('div');
+      fill.className = 'progress-fill';
+      fill.style.width = percent + '%';
+      track.appendChild(fill);
+
+      body.append(top, track);
+      row.append(rank, body);
+      frag.appendChild(row);
+    });
+
+    topCategoriesList.innerHTML = '';
+    topCategoriesList.appendChild(frag);
   }
 
   function getFilteredTransactions() {

@@ -143,6 +143,11 @@ body {
   transition: all 0.15s ease;
 }
 
+.toggle-btn.active {
+  border-color: var(--gold);
+  color: var(--gold-soft);
+}
+
 .toggle-btn.active[data-type="expense"] {
   background: var(--red);
   border-color: var(--red);
@@ -334,8 +339,26 @@ input:focus, select:focus {
   margin: 0;
 }
 
-#monthSelector {
+#monthSelector, #yearSelector {
   width: auto;
+}
+
+.charts-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.view-mode-toggle {
+  width: auto;
+  margin-bottom: 0;
+}
+
+.view-mode-toggle .toggle-btn {
+  flex: none;
+  padding: 7px 12px;
+  font-size: 0.82rem;
 }
 
 .charts-grid {
@@ -369,6 +392,92 @@ input:focus, select:focus {
 
 .empty-state[hidden] {
   display: none;
+}
+
+/* Advanced stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-col);
+  border-radius: var(--radius);
+}
+
+.stat-tile .card-value.positive {
+  color: var(--green);
+}
+
+.stat-tile .card-value.negative {
+  color: var(--red-soft);
+}
+
+/* Top categories */
+.top-categories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.top-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-cat-rank {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-col);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--gold-soft);
+  flex-shrink: 0;
+}
+
+.top-cat-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.top-cat-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.top-cat-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-cat-amounts {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.list-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 20px 0;
 }
 
 /* History */
@@ -605,7 +714,8 @@ input:focus, select:focus {
     grid-template-columns: 1fr;
   }
 
-  .summary-grid {
+  .summary-grid,
+  .stats-grid {
     grid-template-columns: 1fr;
   }
 
